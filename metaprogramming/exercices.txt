@@ -1,0 +1,167 @@
+1. Most makefiles provide a target called clean. This isn’t intended to produce a file called clean, but instead to clean up any files that can be re-built by make. Think of it as a way to “undo” all of the build steps. 
+Implement a clean target for the paper.pdf Makefile above. You will have to make the target phony (https://www.gnu.org/software/make/manual/html_node/Phony-Targets.html). You may find the git ls-files subcommand useful. A number of other very common make targets are listed here. (https://www.gnu.org/software/make/manual/html_node/Standard-Targets.html#Standard-Targets)
+Added at the end of Makefile to remove extra files created during build
+7   .PHONY: clean
+  1 clean:
+  2         rm paper.aux paper.log plot-data.png paper.pdf
+
+Or using git and git ls-files to check added files:
+Added default target all to have a sequence of targets: first install, then paper.pdf
+and when cleaning remove also git repository
+
+all: install paper.pdf
+
+paper.pdf: paper.tex plot-data.png
+         pdflatex paper.tex
+
+plot-%.png: %.dat plot.py
+         ./plot.py -i $*.dat -o $@
+
+install:
+         git init
+         git add .
+
+.PHONY: clean
+ clean:
+         #rm paper.aux paper.log plot-data.png paper.pdf
+         git ls-files -o | xargs rm
+         rm -rf .git
+ 
+git init #to create git repository and start tracking files
+git add . #to stage all initial files
+make # to build and create target and extra files
+make clean to retrieve the untracked files (-o --others shows other (untracked) files) and remove them using xargs and rm
+
+2. Take a look at the various ways to specify version requirements for dependencies in Rust’s build system. Most package repositories support similar syntax. For each one (caret, tilde, wildcard, comparison, and multiple), try to come up with a use-case in which that particular kind of requirement makes sense.
+
+Default requirements specify a minimum version with the ability to update to SemVer compatible versions. Versions are considered compatible if their left-most non-zero major/minor/patch component is the same.
+
+Caret requirements are the default version requirement strategy. This version strategy allows SemVer compatible updates. They are specified as version requirements with a leading caret (^).
+^1.2.3 is an example of a caret requirement. It allows updates that can fix bugs (increase patch version to 1.2.1) or even add features still being backwards compatible (increase minor version to 1.3.0)
+
+Tilde requirements specify a minimal version with some ability to update. If you specify a major, minor, and patch version or only a major and minor version, only patch-level changes are allowed. If you only specify a major version, then minor- and patch-level changes are allowed.
+~1.2.3 is an example of a tilde requirement. It restricts updates only patches are allowed (1.2.4). You might want this to avoid accepting updates that change the API (after minor update).
+
+Wildcard requirements allow for any version where the wildcard is positioned.
+1.* is an example of wildcard requirements. This allows any version with major 1 because it requires the API from 1.0.0, doesn't necessary require any specific later minor update any version with major 1 because it requires the API from 1.0.0, doesn't necessary require any specific later minor update
+
+Comparison requirements allow manually specifying a version range or an exact version to depend on.
+Here are some examples of comparison requirements:
+>= 1.2.0, > 1, < 2, = 1.2.3. An exact version misses possible patches an restricts too much, but might be useful in case we want to block to current code, a lower cap might bring incompatibility after major update while upper cap misses minor or patch updates. 
+
+Multiple version requirements can be separated with a comma, e.g., >= 1.2, < 1.5. This restricts to only specific range to avoid too many compatibilities.
+
+3. Git can act as a simple CI system all by itself. In .git/hooks inside any git repository, you will find (currently inactive) files that are run as scripts when a particular action happens. Write a pre-commit hook that runs make paper.pdf and refuses the commit if the make command fails. This should prevent any commit from having an unbuildable version of the paper.
+Rename pre-commit.sample script tp pre-commit and add at the top
+# Check the exit status
+if make paper.pdf
+then
+# Command succeeded
+        echo "Buildable version of paper available"
+        make clean
+        exit 0
+else
+# Command failed
+        echo "Command failed: make paper returned a non-zero exit status"
+        exit 1
+fi
+
+4. Set up a simple auto-published page using GitHub Pages. Add a GitHub Action (https://docs.github.com/en/actions/get-started/quickstart) to the repository to run shellcheck on any shell files in that repository (here is one way to do it https://github.com/marketplace/actions/shellcheck). Check that it works!
+
+Created repo as per GitHub pages instructions then added inside a yaml config file for GitHub Actions
+/.github/workflows/github-actions-shellcheck.yml
+name: GitHub Actions Shellcheck scripts
+run-name: ${{ github.actor }} is checking out scripts via Shellcheck and GitHub Actions 🚀
+on:
+  push:
+    branches:
+      - main
+permissions: {}
+jobs:
+  shellcheck:
+    name: Shellcheck
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "🎉 The job was automatically triggered by a ${{ github.event_name }} event."
+      - run: echo "🐧 This job is now running on a ${{ runner.os }} server hosted by GitHub!"
+      - run: echo "🔎 The name of your branch is ${{ github.ref }} and your repository is ${{ github.repository }}."
+      - name: Check out repository code
+        uses: actions/checkout@v5
+      - name: Run ShellCheck
+        uses: ludeeus/action-shellcheck@2.0.0
+        with:
+            # skip scripts wip/*
+            ignore_paths: >-
+              wip
+            # fail only if there are errors in scripts but ignore styling, info and warnings.
+            severity: error
+      - run: echo "🍏 This job's status is ${{ job.status }}."
+
+After adding failsRarely.sh script at the root with leading whitespaces that would be detected by Shellcheck
+ #!/usr/bin/env bash
+
+ n=$(( RANDOM % 100 ))
+
+ if [[ n -eq 42 ]]; then
+    echo "Something went wrong"
+    >&2 echo "The error was using magic numbers"
+    exit 1
+ fi
+
+ echo "Everything went according to plan"
+
+Got the error after commit and push:
+./failsRarely.sh:1:1: error: Remove leading spaces before the shebang. [SC1114]
+Run exit 1
+Error: Process completed with exit code 1.
+
+After adding same file with errors inside wip folder (to ignore it) and fixing it at the root the job passed.
+
+5. Build your own GitHub action to run proselint (https://github.com/amperser/proselint) or write-good (https://github.com/btford/write-good) on all the .md files in the repository. Enable it in your repository, and check that it works by filing a pull request with a typo in it.
+
+Added file for GitHub Actions
+.github/workflows/github-actions-proselint.yml
+name: GitHub Actions check prose on all the .md files in the repository
+run-name: ${{ github.actor }} is checking typos within .md files via proselint and GitHub Actions 🚀
+on:
+  pull_request:
+    branches:
+      - main
+permissions: {}
+jobs:
+  proselint:
+    name: Proselint
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "🎉 The job was automatically triggered by a ${{ github.event_name }} event."
+      - run: echo "🐧 This job is now running on a ${{ runner.os }} server hosted by GitHub!"
+      - run: echo "🔎 The name of your branch is ${{ github.ref }} and your repository is ${{ github.repository }}."
+      - name: Check out repository code
+        uses: actions/checkout@v5
+      - name: Install proselint via pip
+        run: pip install proselint
+      - name: Check prose on .md files in the repository
+        run: |
+          proselint check ${{ github.workspace }}/*.md
+      - run: echo "🍏 This job's status is ${{ job.status }}."
+
+Then added 2 .md files with errors
+text.md
+John is very unique.
+
+text1.md
+I want to sleep, perchance to dream.
+
+Then created new branch dev from main, updated text1.md to
+I want to sleep, perchance to dream another time.
+And created pull request to merge into main.
+
+Got as expected error:
+Run proselint check /home/runner/work/mihaidld.github.io/mihaidld.github.io/*.md
+/home/runner/work/mihaidld.github.io/mihaidld.github.io/text.md:1:9: uncomparables: Comparison of an uncomparable: 'very unique' is not comparable.
+/home/runner/work/mihaidld.github.io/mihaidld.github.io/text.md:1:9: weasel_words.very: Substitute 'damn' every time you're inclined to write 'very'; your editor will delete it and the writing will be just as it should be.
+/home/runner/work/mihaidld.github.io/mihaidld.github.io/text1.md:1:18: archaism: 'perchance' is archaic.
+Error: Process completed with exit code 1.
+
+After creating a new branch and updated text.md to John is unique and text1.md to I want to sleep, perhaps to dream, 
+the checks have passed.

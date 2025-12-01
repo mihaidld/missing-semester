@@ -1,0 +1,5 @@
+Use | and > to write the “last modified” date output by semester into a file called last-modified.txt in your home directory.
+./semester | grep -i last-modified | cut -d " " -f 2- >> last-modified.txt
+Sat, 21 Dec 2024 16:53:01 GMT
+Sat, 21 Dec 2024 16:53:01 GMT
+# foobar

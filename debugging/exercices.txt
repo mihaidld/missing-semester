@@ -1,0 +1,130 @@
+Debugging
+1. Use journalctl on Linux or log show on macOS to get the super user accesses and commands in the last day. If there aren’t any you can execute some harmless commands such as sudo ls and check again.
+
+log show --last 1d | grep sudo
+
+2. Do this hands on pdb tutorial (https://github.com/spiside/pdb-tutorial) to familiarize yourself with the commands. For a more in depth tutorial read this (https://realpython.com/python-debugging-pdb/).
+
+3. Install shellcheck and try checking the following script. What is wrong with the code? Fix it. Install a linter plugin in your editor so you can get your warnings automatically.
+
+#!/bin/sh
+## Example: a typical script with several problems
+for f in $(ls *.m3u)
+do
+  grep -qi hq.*mp3 $f \
+    && echo -e 'Playlist $f contains a HQ file in mp3 format'
+done
+
+In broken-script.sh line 3:
+for f in $(ls *.m3u)
+         ^---------^ SC2045 (error): Iterating over ls output is fragile. Use globs.
+              ^-- SC2035 (info): Use ./*glob* or -- *glob* so names with dashes won't become options.
+
+
+In broken-script.sh line 5:
+  grep -qi hq.*mp3 $f \
+           ^-----^ SC2062 (warning): Quote the grep pattern so the shell won't interpret it.
+                   ^-- SC2086 (info): Double quote to prevent globbing and word splitting.
+
+Did you mean:
+  grep -qi hq.*mp3 "$f" \
+
+
+In broken-script.sh line 6:
+    && echo -e 'Playlist $f contains a HQ file in mp3 format'
+            ^-- SC3037 (warning): In POSIX sh, echo flags are undefined.
+               ^-- SC2016 (info): Expressions don't expand in single quotes, use double quotes for that.
+
+
+Fixed:
+"${myarray[@]}" expands to all elements of the array [@]
+and leads to each element of the array being treated as a separate shell-word
+*.m3u is a globbing which expands to an arry containg all files that include
+m3u in their name (e.g. M3U8 video format is a video file format for streaming,
+a playlist text files with the URLs of video files)
+grep -q or quiet mode suppresses normal output, we all need exit code for grep to evaluate 2nd expression after &&
+grep -i ignores case so we search for any file that contains hq / HQ and later mp3
+
+#!/bin/sh
+for f in "${*.m3u[@]}"
+do
+  grep -qi "hq.*mp3" "$f" \
+    && echo "Playlist $f contains a HQ file in mp3 format"
+done
+
+or simpler
+
+#!/bin/sh
+
+for f in *.m3u
+do
+grep -qi "hq.*mp3" "$f" \
+   && echo "Playlist $f contains a HQ file in mp3 format"
+done
+
+4. (Advanced) Read about reversible debugging (https://undo.io/resources/reverse-debugging-whitepaper/)
+ and get a simple example working using rr (https://rr-project.org/) or RevPDB (https://morepypy.blogspot.com/2016/07/reverse-debugging-for-python.html).
+
+Profiling
+5. Here are some sorting algorithm implementations (sorts.py). Use cProfile and line_profiler to compare the runtime of insertion sort and quicksort. What is the bottleneck of each algorithm? Use then memory_profiler to check the memory consumption, why is insertion sort better? Check now the inplace version of quicksort. Challenge: Use perf to look at the cycle counts and cache hits and misses of each algorithm.
+ 
+python -m cProfile -s tottime sorts.py
+quicksort has tottime 0.03, quicksort_inplace 0.023, insertionsort 0.015
+
+LINE_PROFILE=1 python sorts.py #to run with line profiler
+python -m line_profiler -rtmz profile_output.lprof #to view profiler results
+
+quicksort spends most time on last line (return quicksort(left) + [pivot] + quicksort(right) 38008, then on computing length of the array using the builtin len function (if len(array) <= 1:) 20399
+quicksort_inplace spends most on builtin range function with for iteration (for i in range (low, high):) 71834, then if array[i] <= pivot: 54923
+insertionsort spends most time on while loop while j >==0 and v < array[j] 126664, then array[j+1] = array[j]
+In total 0.11 seconds for quicksort, 0.35 for quicksort_inplace and 0.39 for insertionsort
+
+After commenting line importing line_profiler:
+python -m memory_profiler sorts.py
+insertionsort uses same memory 20.207 MiB without any increments in memory usage, while quicksort needs increments in memory consumption since it needs to create new subarrays left and right, quicksort_inplace doesnt add increments in memory consumption since it makes like insertionsort swaps in place.
+
+
+6. Here’s some (arguably convoluted) Python code for computing Fibonacci numbers using a function for each number.
+
+#!/usr/bin/env python
+def fib0(): return 0
+
+def fib1(): return 1
+
+s = """def fib{}(): return fib{}() + fib{}()"""
+
+if __name__ == '__main__':
+
+    for n in range(2, 10):
+        exec(s.format(n, n-1, n-2))
+    # from functools import lru_cache
+    # for n in range(10):
+    #     exec("fib{} = lru_cache(1)(fib{})".format(n, n))
+print(eval("fib9()"))
+
+Put the code into a file and make it executable. 
+Install prerequisites: pycallgraph and graphviz. (If you can run dot, you already have GraphViz.) 
+Run the code as is with pycallgraph graphviz -- ./fib.py and check the pycallgraph.png file. 
+How many times is fib0 called?. 
+21 times
+We can do better than that by memoizing the functions. Uncomment the commented lines and regenerate the images. How many times are we calling each fibN function now?
+1 time
+
+7. A common issue is that a port you want to listen on is already taken by another process. Let’s learn how to discover that process pid. 
+First execute python -m http.server 4444 to start a minimal web server listening on port 4444. 
+On a separate terminal run lsof | grep LISTEN to print all listening processes and ports. Find that process pid and terminate it by running kill <PID>.
+
+lsof -PiTCP:4444
+Find all open files with lsof with options -P (to avoid using port names like krb524 and use instead their port numbers, -i to select iPv4 and IPv6 files with protocol TCP and port number 4444 TCP:4444
+COMMAND   PID        USER   FD   TYPE            DEVICE SIZE/OFF NODE NAME
+Python  31252 mihaidoldur    4u  IPv6 0xc01e2e1a7be4976      0t0  TCP *:4444 (LISTEN)
+
+Then kill that process with
+kill 31252
+
+8. Limiting a process’s resources can be another handy tool in your toolbox. Try running stress -c 3 and visualize the CPU consumption with htop. Now, execute taskset --cpu-list 0,2 stress -c 3 and visualize it. Is stress taking three CPUs? Why not? Read man taskset. Challenge: achieve the same using cgroups. Try limiting the memory consumption of stress -m.
+stress -c 3 occupies 3 CPU's to 100% as per htop
+taskset --cpu-list 0,2 stress -c 3 executes stress -c 3, but limits usage of only CPUs #0 and #2 as per --cpu-list option so uses only 2 CPUs as per man taskset. So in total only 5 CPUs are hogged.
+
+9. (Advanced) The command curl ipinfo.io performs a HTTP request and fetches information about your public IP. Open Wireshark and try to sniff the request and reply packets that curl sent and received. (Hint: Use the http filter to just watch HTTP packets).
+After downloading ans installing Wireshark on MacOs, I started capturing packets via Menu > Capture, and adding display firlter http, then launched the command curl ipinfo.io from the Terminal app. Within Wireshark interface I can view request and reply packets in HEX and ASCII decoded for response in JSON format { "ip": "86...}

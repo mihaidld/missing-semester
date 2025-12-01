@@ -1,0 +1,96 @@
+Thanks to solutions : https://ivan-kim.github.io/MIT-missing-semester/Lecture4/
+1. Take this short interactive regex tutorial.
+
+2. Find the number of words (in /usr/share/dict/words) that contain at least three a's and don’t have a 's ending. 
+What are the three most common last two letters of those words? 
+sed’s y command, or the tr program, may help you with case insensitivity. 
+cat /usr/share/dict/words |  tr "[:upper:]" "[:lower:]" | grep -E "^([^a]*a){3}.*$" | grep -v "'s$" | sed -E 's/.*(.{2})$/\1/' | sort | uniq -c | sort -nk1,1 | tail -n3
+
+How many of those two-letter combinations are there? 
+cat /usr/share/dict/words |  tr "[:upper:]" "[:lower:]" | grep -E "^([^a]*a){3}.*$" | grep -v "'s$" | sed -E 's/.*(.{2})$/\1/' | sort | uniq | wc -l  
+
+And for a challenge: which combinations do not occur?
+
+Use script to get all possible 2 letter combinations
+#!/usr/bin/env sh
+
+for letter1 in {a..z}
+   do
+   for letter2 in {a..z}
+       do
+       echo $letter1$letter2
+       done
+   done
+Save all combinations into file all_letters and last 2 into file last
+source letters.sh > all_letters
+cat /usr/share/dict/words |  tr "[:upper:]" "[:lower:]" | grep -E "^([^a]*a){3}.*$" | grep -v "'s$" | sed -E 's/.*(.{2})$/\1/' | sort | uniq >last
+Then use diff program to find missing combinations
+diff -y --suppress-common-lines all_letters last
+
+3. To do in-place substitution it is quite tempting to do something like sed s/REGEX/SUBSTITUTION/ input.txt > input.txt. However this is a bad idea, why? Is this particular to sed? Use man sed to find out how to accomplish this.
+sed s/REGEX/SUBSTITUTION/ input.txt > input.txt will return a blank file, since input.txt on the right hand side of the output operator > will be made blank before the left hand side of the output operator could be applied. Because the file names conicide, an empty input.txt will be output to an empty input.txt.
+
+sed -i extension 
+Edit files in-place, saving backups with the specified extension.  
+If a zero-length extension is given, no backup will be saved.  
+It is not recommended to give a zero-length extension when in-place 
+editing files, as you risk corruption or partial content in situations 
+where disk space is exhausted, etc.
+
+sed -i inputTemp.txt -e 's/REGEX/SUBSTITUTION/' input.txt
+
+4. Find your average, median, and max system boot time over the last ten boots. 
+Use journalctl on Linux and log show on macOS, and look for log timestamps near the beginning and end of each boot. 
+On Linux, they may look something like:
+Logs begin at ...
+and
+systemd[577]: Startup finished in ...
+On macOS, look for:
+=== system boot:
+and
+Previous shutdown cause: 5
+
+Output the matching logs to a separate file bootlog since it takes a while to run through a month worth of log history everytime.
+
+log show | grep -E "=== system boot:|Previous shutdown cause: 5" > bootlog
+
+Didn't get right logs on MacOs so had to use another bootlog.
+A line of the matched log looks like this on macOS:
+
+2020-04-29 09:46:04.022430+0900 0x0        Timesync    0x0                  0      0    === system boot: C4C57548-7964-483A-A0E9-8FD49A6088C6
+2020-04-29 09:46:04.683152+0900 0xa9       Default     0x0                  0      0    kernel: (AppleSMC) Previous shutdown cause: 5
+
+The line of interest the second column of the logs, of which their difference denotes the time how long the system took to boot.
+
+cat bootlog | awk '{print $2}' | sed -E "s/^.*:(.*)\+.*$/\1/"| xargs -n2 | tail -n10 | awk '{print $2"-"$1}' | bc | R --slave -e 'x <- scan(file="stdin", quiet=TRUE); summary(x)'
+
+awk '{print $2}' only prints the second column of the bootlog.
+sed -E "s/^.*:(.*)\+.*$/\1/" dismisses the hour and minute and timezone of the time log, and replaces the logs with the simplified version of seconds (as boot time is often around a few seconds).
+xargs -n2 rearranges the logs to be shown in two columns.
+tail -n10 get last 10 boot times
+awk '{print $2"-"$1}' concatenates a subtraction character "-" between the second column and the first column. Note that this print is interpreted as a string type, not an operation between integer type values.
+bc turns the previous strings to an integer operation.
+R --slave -e 'x <- scan(file="stdin", quiet=TRUE); summary(x)' can be used as in the lectures to compute the average, median, and max boot time. Programming language R must be installed in order to run this command. Or install st and replace the command with st --mean --median --max. 
+
+5. Look for boot messages that are not shared between your past three reboots (see journalctl’s -b flag). 
+Break this task down into multiple steps. First, find a way to get just the logs from the past three boots. 
+There may be an applicable flag on the tool you use to extract the boot logs, or you can use sed '0,/STRING/d' 
+to remove all lines previous to one that matches STRING. 
+Next, remove any parts of the line that always varies (like the timestamp). 
+Then, de-duplicate the input lines and keep a count of each one (uniq is your friend). 
+And finally, eliminate any line whose count is 3 (since it was shared among all the boots).
+
+Skipped (system not Linux)
+
+6. Find an online data set like this one, this one, or maybe one from here. Fetch it using curl and extract out just two columns of numerical data. If you’re fetching HTML data, pup might be helpful. For JSON data, try jq. Find the min and max of one column in a single command, and the difference of the sum of each column in another.
+
+Downloaded set hlm.json and using jq to parse it
+
+Extract out just two columns of numerical data.
+jq '.[] | {nbLog: .nbre_logts, year: .a_m_e_s}' hlm.json 
+
+Get minimum and maximum value for fields nbre_logts
+echo min $(jq 'min_by(.nbre_logts) | .nbre_logts' hlm.json) max $(jq 'max_by(.nbre_logts) | .nbre_logts' hlm.json)
+
+Get difference of the sum of each column in another command.
+echo $(jq '[.[] | .a_m_e_s] | add' hlm.json) - $(jq '[.[] | .nbre_logts] | add' hlm.json) | bc

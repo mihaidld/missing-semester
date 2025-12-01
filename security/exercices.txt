@@ -1,0 +1,101 @@
+1. Entropy.
+1. Suppose a password is chosen as a concatenation of four lower-case dictionary words, where each word is selected uniformly at random from a dictionary of size 100,000. An example of such a password is correcthorsebatterystaple. How many bits of entropy does this have?
+The number of possibilities is 100000^4=10^20. The #bits of entropy is log(2) 10^20 = 66.43
+
+2. Consider an alternative scheme where a password is chosen as a sequence of 8 random alphanumeric characters (including both lower-case and upper-case letters). An example is rg8Ql34g. How many bits of entropy does this have?
+
+The number of possibilities is (26 lowercase + 26 uppercase + 10 digits) ^ 8 = 62^8=218 340 105 584 896. The #bits of entropy is log(2) of 218 340 105 584 896 = 47.63
+
+3. Which is the stronger password?
+The one with highest entropy 66.
+
+4. Suppose an attacker can try guessing 10,000 passwords per second. On average, how long will it take to break each of the passwords?
+If the # of passwords is 10^20 and an attacker guesses 10000 / sec then it would take him 10^20/10^4 = 10^16 sec = 317 097 919 years
+If the # of passwords is 62^8 and an attacker guesses 10000 / sec then it would talke him 62^8/10^4 = 21 834 010 558 sec = 692 years
+
+2. Cryptographic hash functions. 
+Download a Debian image from a mirror(https://www.debian.org/CD/http-ftp/) (e.g. from this Argentinean mirror (http://debian.xfree.com.ar/debian-cd/current/amd64/iso-cd/)). Cross-check the hash (e.g. using the sha256sum command) with the hash retrieved from the official Debian site (e.g. this file hosted at debian.orgi https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/SHA256SUMS, if you’ve downloaded the linked file from the Argentinean mirror).
+
+The hashes are as per official Debian site
+677c4d57aa034dc192b5191870141057574c1b05df2b9569c0ee08aa4e32125d  debian-13.2.0-amd64-netinst.iso
+2077834ae23049a185b72679917e040a8832ded883eab4c1d5e10f9fae7716dc  debian-edu-13.2.0-amd64-netinst.iso
+c27fc48497aa5477e029a6dba32dfa4660b23f36757c10055bf31e8b1c32384c  debian-mac-13.2.0-amd64-netinst.iso
+
+I downloaded the 3 files then 
+sha256sum debian-13.2.0-amd64-netinst.iso
+677c4d57aa034dc192b5191870141057574c1b05df2b9569c0ee08aa4e32125d  debian-13.2.0-amd64-netinst.iso
+sha256sum debian-edu-13.2.0-amd64-netinst.iso
+2077834ae23049a185b72679917e040a8832ded883eab4c1d5e10f9fae7716dc  debian-edu-13.2.0-amd64-netinst.iso
+sha256sum debian-mac-13.2.0-amd64-netinst.iso
+c27fc48497aa5477e029a6dba32dfa4660b23f36757c10055bf31e8b1c32384c  debian-mac-13.2.0-amd64-netinst.iso
+
+3. Symmetric cryptography. Encrypt a file with AES encryption, using OpenSSL(https://www.openssl.org/): 
+openssl aes-256-cbc -salt -in {input filename} -out {output filename}.
+Look at the contents using cat or hexdump. Decrypt it with openssl aes-256-cbc -d -in {input filename} -out {output filename} and confirm that the contents match the original using cmp.
+
+Created text.md file with contents Alice and Bob go to school.% 
+
+cat text.md
+Alice and Bob go to school.%
+
+openssl aes-256-cbc -salt -in text.md -out text.enc.md
+enter AES-256-CBC encryption password:
+Verifying - enter AES-256-CBC encryption password:
+
+cat text.enc.md
+,/4ف?_IEԭn+["N %
+
+hexdump -c text.enc.md
+0000000   S   a   l   t   e   d   _   _ 213  \r   , 026   /      4
+0000010    201    035            ? 020    233    036   _ 214   I
+0000020 020   E       255   n   +   [   " 002   N     036
+0000030
+
+openssl aes-256-cbc -d -in text.enc.md -out text.dec.md
+enter AES-256-CBC decryption password:
+
+cat text.dec.md
+Alice and Bob go to school.%
+
+cmp text.md text.dec.md
+
+echo $?
+0
+
+
+4. Asymmetric cryptography.
+1. Set up SSH keys (https://www.digitalocean.com/community/tutorials/how-to-set-up-ssh-keys-2) on a computer you have access to (not Athena, because Kerberos interacts weirdly with SSH keys). Make sure your private key is encrypted with a passphrase, so it is protected at rest.
+ssh-keygen -t ed25519
+
+2. Set up GPG (https://www.digitalocean.com/community/tutorials/how-to-use-gpg-to-encrypt-and-sign-messages)
+Created GPG key pair with gpg --gen-key. Saved passphrase used to encrypt private key for later use.
+
+3. Send Anish an encrypted email (public key).(https://keybase.io/anish)
+It automatically created a revocation certificate with 600 permission (RW from user)
+Searched for Anish's public key at https://pgp.mit.edu/
+Verified Anish's identity by comparing the retrieved public key fingerprint with the one htttps://keybase.io/anish)
+gpg --fingerprint me@anishathalye.com
+Created thanks.txt file with contents Thank you for Missing Semester course!
+Encrypted message using sender and receiver's public keys (for them both to be allowed to decrypt it with their corresponding private keys)
+gpg --encrypt --sign --armor -r me@anishathalye.com -r <myemail>@yahoo.com thanks.txt
+It generated a new encrypted message with same name and .asc extension
+Tried to decrypt message via
+gpg thanks.txt.asc
+This created decrypted message thanks.dec.txt
+thanks.dec.txt
+Thank you for Missing Semester course!
+
+4. Sign a Git commit with git commit -S or create a signed Git tag with git tag -s. Verify the signature on the commit with git show --show-signature or on the tag with git tag -v.
+Created repo with text file and initialized git repository and staged all files with git init; git add .
+Then signed git commit with -S (sign with GPG key)
+git commit -m "First commit" -S
+Verified the signature on the commit with
+git show --show-signature 
+
+commit 78ac93bfdfe188b27823f3bfc0c34ac71ac18b97 (HEAD -> main)
+gpg: Signature made Fri Nov 28 15:20:06 2025 CET
+gpg:                using RSA key 2AE5B7F59F0BA35FABE2AD94B84D23B8C8F62859
+gpg:                issuer "<myemail>@yahoo.com"
+gpg: Good signature from "Mihai Doldur <myemail>@yahoo.com" [ultimate]
+Author: Mihai Doldur <myemail@yahoo.com>
+Date:   Fri Nov 28 15:20:06 2025 +0100

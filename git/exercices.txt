@@ -1,0 +1,62 @@
+Exercises
+1. If you don’t have any past experience with Git, either try reading the first couple chapters of Pro Git or 
+go through a tutorial like Learn Git Branching. As you’re working through it, relate Git commands to the data model.
+
+2. Clone the repository for the class website.
+git clone https://github.com/missing-semester/missing-semester.git
+
+Explore the version history by visualizing it as a graph.
+git log --all --graph --decorate
+
+Who was the last person to modify README.md? (Hint: use git log with an argument).
+View only most recent commit (-1) that affected only a certain path (-p README.md or -- to separate options from path
+then README.md, find the author 
+git log -1 -p README.md | grep Author 
+git log -1 -- README.md | grep Author
+
+What was the commit message associated with the last modification to the collections: line of _config.yml? (Hint: use git blame and git show).
+Show for each line of _config.yml, which commit modified it, then grep line "collections:"
+Use awk to keep only the first column containing prefix of hash commit
+use xargs to convert STDIN to arg for git show which shows the details of that commit
+with format %s to show only the subject (commit title) and get only the 1st line (without diff of the commit)
+git blame _config.yml | grep "collections:" | awk '{print $1}' | xargs git show --format=%s | head -n1
+
+3. One common mistake when learning Git is to commit large files that should not be managed by Git 
+or adding sensitive information. 
+Try adding a file to a repository, making some commits and then deleting that file from history (you may want to look at this).
+Use git-filter-repo to remove file .env
+brew install git-filter-repo # Install it  
+git filter-repo --invert-paths --force --path .env # need to force since not fresh clone (from remote)
+
+4. Clone some repository from GitHub, and modify one of its existing files. 
+What happens when you do git stash? 
+Saved working directory and index state WIP on master: b5534a5 Address link checker failures
+The change has dissapeared in working directory, git log still shows latest commit b5534a5 Address link ...
+
+What do you see when running git log --all --oneline? 
+0447205 (refs/stash) WIP on master: b5534a5 Address link checker failures
+f5840d4 index on master: b5534a5 Address link checker failures
+b5534a5 (HEAD -> master, origin/master, origin/HEAD) Address link checker failures
+We see references to stashed changes
+
+Run git stash pop to undo what you did with git stash. 
+The working directory is updated with stashed change, and change is removed from git log history.
+
+In what scenario might this be useful?
+When working on a feature not yet tested so we don't want to commit it yet, but we might need to fetch / push other work
+while putting aside work on this feature temporarily and getting back to it later
+
+5. Like many command line tools, Git provides a configuration file (or dotfile) called ~/.gitconfig. 
+Create an alias in ~/.gitconfig so that when you run git graph, you get the output of git log --all --graph --decorate --oneline. 
+You can do this by directly editing the ~/.gitconfig file, or you can use the git config command to add the alias. Information about git aliases can be found here.
+Edit ~/.gitconfig file by adding:
+ [alias]
+         graph = log --all --graph --decorate --oneline
+Or use command:
+git config --global alias.graph 'log --all --graph --decorate --oneline'
+
+6.You can define global ignore patterns in ~/.gitignore_global after running git config --global core.excludesfile ~/.gitignore_global. This sets the location of the global ignore file that Git will use, but you still need to manually create the file at that path. Set up your global gitignore file to ignore OS-specific or editor-specific temporary files, like .DS_Store.
+git config --global core.excludesfile ~/.gitignore_global
+echo ".DS_Store" >> ~/.gitignore_global
+
+7. Fork the repository for the class website, find a typo or some other improvement you can make, and submit a pull request on GitHub (you may want to look at this). Please only submit PRs that are useful (don’t spam us, please!). If you can’t find an improvement to make, you can skip this exercise.

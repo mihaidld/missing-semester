@@ -1,0 +1,1 @@
+Alice and Bob go to school.
